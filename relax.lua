@@ -240,6 +240,12 @@ function grid_redraw()
       g:led(i,1,i==_L[page.."_position"] and 3 or 0)
     end
   end
-  g:led(pages[page],8,11)
+  for k, v in pairs(pages) do
+    if k == page then
+      g:led(pages[k],8,11)
+    else
+      g:led(pages[k],8,4)
+    end
+  end
   g:refresh()
 end
