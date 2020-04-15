@@ -9,18 +9,21 @@
 -- KEY2 = hold
 -- KEY3 = restart sequence
 
+-- TODO How to blink grid key when looping single key/position?
 -- TODO Keep transpose and offset separate? Not sure of the pros and cons
 -- TODO Use octave or 8(or 7) scale "steps" (as many as fit on a grid) for transposing?
 -- TODO Use absolute value per step or grid based value (1-8) together with separate transpose table?
+-- TODO Use 0 as value for pitches instead of separate triggers table? Advantage of triggers table is slightly easier code (if trigger vs if pitch == 0)
 
-local music = require 'musicutil'
-local TU = require 'tabutil'
+local music = require "musicutil"
+local TU = require "tabutil"
 local UI = require "ui"
 
 local running = false
 local divisor = 4
 local grid_buttons_pressed = {}
 local pages = {pitch = 1, offset = 2}
+local index_to_pages = {"pitch", "offset"}
 local page = "pitch"
 
 -- Tracks
@@ -33,6 +36,7 @@ tracks[1].pitch.triggers = {}
 tracks[1].pitch.position = 1
 tracks[1].pitch.loop_start = 1 -- or start_point and end_point?
 tracks[1].pitch.loop_end = 16
+tracks[1].pitch.new_loop_set = false
 tracks[1].pitch.transpose = {}
 tracks[1].offset = {}
 tracks[1].offset.pitches = {}
@@ -40,14 +44,13 @@ tracks[1].offset.triggers = {}
 tracks[1].offset.position = 1
 tracks[1].offset.loop_start = 1
 tracks[1].offset.loop_end = 16
+tracks[1].offset.new_loop_set = 16
+tracks[1].controls = {pitch = false, offset = false}
 -- end
 
 
 local task_id = nil
 local playback_icon = UI.PlaybackIcon.new(121, 55)
-
--- Create a fake local table just like _G
--- _L = {pitch = pitch, offset = offset}
 
 -- mode = math.random(#music.SCALES)
 -- TU.print(music.SCALES)
@@ -122,7 +125,7 @@ function key(n,z)
       tracks[1].offset.position = 1
       if not running then
         playback_icon.status = 4
-        -- I don't like this, maybe grid_redraw should also be run as a corouting, just like redraw?
+        -- I don't like this, maybe grid_redraw should also be run as a coroutine, just like redraw?
         -- grid_redraw()
       end
   elseif n == 3 and z == 1 then
@@ -182,34 +185,35 @@ function redraw()
   screen.update()
 end
 
-
+-- Should this be so randomly here? Shouldn't this be in init? Or at the top of the script? Why is it here in this place?
 g = grid.connect()
 
 g.key = function(x,y,z)
-  if y == 8 then -- control row key pressed
-    if x == 1 then
-      page = "pitch"
-    elseif x == 2 then
-      page = "offset"
+  if y == 8 then
+    -- Global controls
+    if z == 1 then -- key pressed
+      tracks[1].controls[index_to_pages[x]] = true
+    elseif z == 0 then -- key released
+      if x == 1 then
+        page = "pitch"
+      elseif x == 2 then
+        page = "offset"
+      end
+      tracks[1].controls[index_to_pages[x]] = false
     end
   else
+    -- Page controls
     if z == 1 then -- key pressed
-      -- Allow setting loop start and end points
-      -- Not really sure how best to handle this/how to combine being able to enable/disable
-      -- pitch/keys with being able to pick loop start and end points?
-      if #grid_buttons_pressed == 1 then
-        grid_buttons_pressed[2] = x
-        tracks[1][page].loop_start = math.min(grid_buttons_pressed[1], x)
-        tracks[1][page].loop_end = math.max(grid_buttons_pressed[1], x)
-        grid_buttons_pressed = {}
+      -- Set loop start and end points when page button is pressed
+      if tracks[1].controls[page] then
+        table.insert(grid_buttons_pressed, x)
+        if #grid_buttons_pressed == 2 then
+          -- When 2 buttons are pressed immediately set loop start and end point
+          tracks[1][page].loop_start = math.min(grid_buttons_pressed[1], grid_buttons_pressed[2])
+          tracks[1][page].loop_end = math.max(grid_buttons_pressed[1], grid_buttons_pressed[2])
+          tracks[1][page].new_loop_set = true
+        end
       else
-        grid_buttons_pressed[1] = x
-      end
-    elseif z == 0 then
-      -- If the current key is in grid_buttons_pressed it's not being used for a loop so use it for setting a step value
-      if TU.contains(grid_buttons_pressed, x) then
-        -- if y == 8 then -- control row
-        --   -- print(x)
         if tracks[1][page].triggers[x] and tracks[1][page].pitches[x] == y then
           -- Existing note pressed, turn off step
           tracks[1][page].triggers[x] = false
@@ -218,18 +222,27 @@ g.key = function(x,y,z)
           tracks[1][page].pitches[x] = y
           tracks[1][page].triggers[x] = true
         end
-        -- grid_redraw()
-        -- TU.print(tracks[1][page].triggers)
-        table.remove(grid_buttons_pressed, TU.key(grid_buttons_pressed, x))
       end
+    elseif z == 0 then -- key released
+      if #grid_buttons_pressed == 1 then -- If there's still a single page key pressed
+        if not tracks[1][page].new_loop_set then -- Check if new loop start and end points have been set
+          -- If not, we've got a single keypress whilst the page button was pressed so create a single step loop
+          tracks[1][page].loop_start = grid_buttons_pressed[1]
+          tracks[1][page].loop_end = grid_buttons_pressed[1]
+        else
+          -- New loop start and end points have been set before, since we've just released the remaining single button
+          -- we can now set our "dirty" flag to false again
+          tracks[1][page].new_loop_set = false
+        end
+      end
+      table.remove(grid_buttons_pressed, TU.key(grid_buttons_pressed, x))
     end
   end
-  -- TU.print(tracks[1].offset.triggers)
-  -- TU.print(offset)
 end
 
 function grid_redraw()
   g:all(0)
+  -- Draw pages
   for i=1,16 do
     local low_value = 7
     if i < tracks[1][page].loop_start or i > tracks[1][page].loop_end then
@@ -241,6 +254,7 @@ function grid_redraw()
       g:led(i,1,i==tracks[1][page].position and 3 or 0)
     end
   end
+  -- Draw global controls
   for k, v in pairs(pages) do
     if k == page then
       g:led(pages[k],8,11)
