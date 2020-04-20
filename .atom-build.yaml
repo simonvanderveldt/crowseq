@@ -1,0 +1,4 @@
+atomCommandName: "Norns: Run script"
+name: 'Norns: Run script'
+cmd: 'PROJECT_NAME=$(basename {PROJECT_PATH}) && sshpass -p sleep rsync -a --delete --exclude=".*" --delete-excluded {PROJECT_PATH} we@norns.localdomain:/home/we/dust/code/ && echo "norns.script.load(\"code/${PROJECT_NAME}/${PROJECT_NAME}.lua\")" | websocat --one-message --protocol bus.sp.nanomsg.org ws://norns.localdomain:5555'
+sh: true

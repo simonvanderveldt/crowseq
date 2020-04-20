@@ -9,11 +9,18 @@
 -- KEY2 = hold
 -- KEY3 = restart sequence
 
+
+-- TODO Fix loop start and endpoints
+-- TODO Enabling/disabling pitches should not change triggers if any trigger is set (I think)
+-- TODO Move some commonly used stuff to functions? Like calculation the step from the click. Or add an attribute to store the step maybe?
+
 -- TODO How to blink grid key when looping single key/position?
 -- TODO Keep transpose and offset separate? Not sure of the pros and cons
 -- TODO Use octave or 8(or 7) scale "steps" (as many as fit on a grid) for transposing?
 -- TODO Use absolute value per step or grid based value (1-8) together with separate transpose table?
 -- TODO Use 0 as value for pitches instead of separate triggers table? Advantage of triggers table is slightly easier code (if trigger vs if pitch == 0)
+-- TODO Add morph
+-- TODO Add randomize
 
 local music = require "musicutil"
 local TU = require "tabutil"
@@ -23,8 +30,9 @@ local running = false
 local divisor = 4
 local grid_buttons_pressed = {}
 local pages = {pitch = 1, offset = 2}
-local index_to_pages = {"pitch", "offset"}
+local index_to_pages = {"pitch", "offset", "triggers"}
 local page = "pitch"
+local subpage = "pitches"
 
 -- Tracks
 tracks = {}
@@ -45,7 +53,7 @@ tracks[1].offset.position = 1
 tracks[1].offset.loop_start = 1
 tracks[1].offset.loop_end = 16
 tracks[1].offset.new_loop_set = 16
-tracks[1].controls = {pitch = false, offset = false}
+tracks[1].controls = {pitch = false, offset = false, triggers = false}
 -- end
 
 
@@ -55,21 +63,28 @@ local playback_icon = UI.PlaybackIcon.new(121, 55)
 -- mode = math.random(#music.SCALES)
 -- TU.print(music.SCALES)
 scale = music.generate_scale_of_length(8, "major", 14)
--- TU.print(scale)
 
 function init()
   for i=1,16 do
     table.insert(tracks[1].pitch.pitches, math.random(7))
-    table.insert(tracks[1].pitch.triggers, true)
     table.insert(tracks[1].pitch.transpose, 0)
     table.insert(tracks[1].offset.pitches, 0)
+  end
+  for i=1,96 do
+    if i % 6 == 1 then
+      table.insert(tracks[1].pitch.triggers, true)
+    else
+      table.insert(tracks[1].pitch.triggers, false)
+    end
     table.insert(tracks[1].offset.triggers, false)
   end
   grid_redraw()
+  -- TU.print(tracks[1].pitch.triggers)
+  -- print(tracks[1].pitch.triggers[1])
 
   crow.output[1].action = "pulse(0.01, 8, 1)"
 
-  task_id = clock.run(step)
+  task_id = clock.run(tick)
 
   -- screen refresh
   clock.run(function()
@@ -88,45 +103,39 @@ function init()
   end)
 end
 
-function step()
+function tick()
   while true do
-    clock.sync(1/divisor)
-    if running then
-      -- print(tracks[1].pitch.position)
-      -- print(tracks[1].pitch.pitches[tracks[1].pitch.position])
-      if tracks[1].pitch.triggers[tracks[1].pitch.position] then
-        local note_num = 8 - tracks[1].pitch.pitches[tracks[1].pitch.position]
-        if tracks[1].offset.triggers[tracks[1].offset.position] then
-          note_num = note_num + (8 - tracks[1].offset.pitches[tracks[1].offset.position])
+    clock.sync(1 / (divisor * 6)) -- 24ppqn = 6 ticks per beat
+      if running then
+        -- print(tracks[1].pitch.position)
+        -- print(tracks[1].pitch.triggers[tracks[1].pitch.position])
+        if tracks[1].pitch.triggers[tracks[1].pitch.position] then
+          local note_num = 8 - tracks[1].pitch.pitches[math.ceil(tracks[1].pitch.position / 6)]
+          if tracks[1].offset.triggers[tracks[1].pitch.position] then
+            note_num = note_num + (8 - tracks[1].offset.pitches[math.ceil(tracks[1].offset.position / 6)])
+          end
+          local note_value = scale[note_num]/12
+          crow.output[2].volts = note_value + tracks[1].pitch.transpose[math.ceil(tracks[1].pitch.position / 6)]
+          crow.output[1].execute()
         end
-        local note_value = scale[note_num]/12
-        -- print(tracks[1].pitch.transpose[tracks[1].pitch.position])
-        -- print(note_num)
-        crow.output[2].volts = note_value + tracks[1].pitch.transpose[tracks[1].pitch.position]
-        crow.output[1].execute()
-        -- grid_redraw()
+        -- if tracks[1].position % 8 == 1 then
+        --   -- Increment tracks[1].pitch.step. Wrap tracks[1].pitch.loop_start in case the current tracks[1].pitch.step is tracks[1].pitch.loop_end
+        --   tracks[1].pitch.step = math.max((tracks[1].pitch.step % tracks[1].pitch.loop_end) + 1, tracks[1].pitch.loop_start)
+        --   tracks[1].offset.step = math.max((tracks[1].offset.step % tracks[1].offset.loop_end) + 1, tracks[1].offset.loop_start)
+        -- end
+        tracks[1].pitch.position = math.max((tracks[1].pitch.position % 96) + 1, 1)
+        tracks[1].offset.position = math.max((tracks[1].offset.position % 96) + 1, 1)
       end
-      -- print(tracks[1].pitch.position)
-      -- tracks[1].pitch.position = util.clamp(tracks[1].pitch.position + 1, tracks[1].pitch.loop_start, tracks[1].pitch.loop_end)
-      -- Increment tracks[1].pitch.position. Wrap tracks[1].pitch.loop_start in case the current tracks[1].pitch.position is tracks[1].pitch.loop_end
-      tracks[1].pitch.position = math.max((tracks[1].pitch.position % tracks[1].pitch.loop_end) + 1, tracks[1].pitch.loop_start)
-      tracks[1].offset.position = math.max((tracks[1].offset.position % tracks[1].offset.loop_end) + 1, tracks[1].offset.loop_start)
-      -- print(tracks[1].pitch.position)
-      -- print(tracks[1].offset.position)
-    end
+    -- end
   end
 end
 
 function key(n,z)
   if n == 2 and z == 1 then
-      -- clock.cancel(task_id)
-      -- task_id = clock.run(step)
       tracks[1].pitch.position = 1
       tracks[1].offset.position = 1
       if not running then
         playback_icon.status = 4
-        -- I don't like this, maybe grid_redraw should also be run as a coroutine, just like redraw?
-        -- grid_redraw()
       end
   elseif n == 3 and z == 1 then
     -- running = not running
@@ -191,13 +200,20 @@ g = grid.connect()
 g.key = function(x,y,z)
   if y == 8 then
     -- Global controls
-    if z == 1 then -- key pressed
+    if z == 1 then
+      -- key pressed
       tracks[1].controls[index_to_pages[x]] = true
-    elseif z == 0 then -- key released
+    elseif z == 0 then
+      -- key released
       if x == 1 then
         page = "pitch"
+        subpage = "pitches"
       elseif x == 2 then
         page = "offset"
+        subpage = "pitches"
+      elseif x == 3 then
+        page = "pitch"
+        subpage = "triggers"
       end
       tracks[1].controls[index_to_pages[x]] = false
     end
@@ -214,15 +230,29 @@ g.key = function(x,y,z)
           tracks[1][page].new_loop_set = true
         end
       else
-        if tracks[1][page].triggers[x] and tracks[1][page].pitches[x] == y then
-          -- Existing note pressed, turn off step
-          tracks[1][page].triggers[x] = false
-        else
-          -- New note pressed
-          tracks[1][page].pitches[x] = y
-          tracks[1][page].triggers[x] = true
+        if subpage == "pitches" then
+          position = ((x - 1) * 6) + 1
+          if tracks[1][page].triggers[position] and tracks[1][page].pitches[x] == y then
+            -- Existing note pressed, turn off step
+            tracks[1][page].triggers[position] = false
+          else
+            -- New note pressed
+            tracks[1][page].pitches[x] = y
+            tracks[1][page].triggers[position] = true
+          end
+        elseif subpage == "triggers" and y > 1 then
+          -- Only trigger on row 2-7 because we only have 6 triggers per step
+          position = ((x - 1) * 6) + (8 - y)
+          if tracks[1][page].triggers[position] then
+            -- Existing trigger pressed, turn off
+            tracks[1][page].triggers[position] = false
+          else
+            -- New trigger pressed
+            tracks[1][page].triggers[position] = true
+          end
         end
       end
+      TU.print(tracks[1][page].triggers)
     elseif z == 0 then -- key released
       if #grid_buttons_pressed == 1 then -- If there's still a single page key pressed
         if not tracks[1][page].new_loop_set then -- Check if new loop start and end points have been set
@@ -245,13 +275,42 @@ function grid_redraw()
   -- Draw pages
   for i=1,16 do
     local low_value = 7
+    local mid_value = 11
+    local high_value = 15
     if i < tracks[1][page].loop_start or i > tracks[1][page].loop_end then
-      low_value = 4
+      mid_value = 4
     end
-    if tracks[1][page].triggers[i] then
-      g:led(i,tracks[1][page].pitches[i],i==tracks[1][page].position and 15 or low_value)
-    else
-      g:led(i,1,i==tracks[1][page].position and 3 or 0)
+    if subpage == "pitches" then
+      -- Check if there's at least one trigger enabled for this step
+      -- Also check if this step's trigger itself is enabled
+      click = false
+      step = false
+      for j=1,6 do
+        if tracks[1][page].triggers[((i-1) * 6) + j] then
+          if j == 1 then
+            step = true
+          end
+          click = true
+        end
+      end
+      -- Set brightness. If this step is currently playing it's high, if not and this step's trigger is enabled it's mid
+      -- if not but any other trigger for this step is enabled it's low
+      -- and if there is no trigger enabled for this step at all it's off but we show a moving cursor at the top row
+      if step then
+        g:led(i,tracks[1][page].pitches[i],i==math.ceil(tracks[1][page].position / 6) and 15 or mid_value)
+      elseif click then
+        g:led(i,tracks[1][page].pitches[i],i==math.ceil(tracks[1][page].position / 6) and 15 or low_value)
+      else
+        g:led(i,1,i==math.ceil(tracks[1][page].position / 6) and 3 or 0)
+      end
+    elseif subpage == "triggers" then
+      for j=1,6 do -- 24ppqn = 6 ticks per 16th note
+        if tracks[1][page].triggers[((i-1) * 6) + j] then
+          g:led(i,8-j,j==(tracks[1][page].position - ((i-1) * 6)) and 15 or mid_value)
+        else
+          g:led(i,8-j,j==(tracks[1][page].position - ((i-1) * 6)) and 3 or 0)
+        end
+      end
     end
   end
   -- Draw global controls
