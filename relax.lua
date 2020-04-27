@@ -110,7 +110,7 @@ function tick()
         -- print(tracks[1].pitch.triggers[tracks[1].pitch.position])
         if tracks[1].pitch.triggers[tracks[1].pitch.position] then
           local note_num = 8 - tracks[1].pitch.pitches[math.ceil(tracks[1].pitch.position / 6)]
-          if tracks[1].offset.triggers[tracks[1].offset.position] then
+          if tracks[1].offset.triggers[(math.ceil(tracks[1].offset.position / 6) * 6) - 5] then
             note_num = note_num + (8 - tracks[1].offset.pitches[math.ceil(tracks[1].offset.position / 6)])
           end
           local note_value = scale[note_num]/12
@@ -229,12 +229,12 @@ g.key = function(x,y,z)
       else
         -- Page button isn't pressed, set page specific properties (pitches, triggers, etc)
         if subpage == "pitches" then
-          position = ((x - 1) * 6) + 1
+          position = ((x - 1) * 6) + 1 -- Calculate step position from tick position
           if tracks[1][page].triggers[position] and tracks[1][page].pitches[x] == y then
             -- Existing note pressed, turn off step
             tracks[1][page].triggers[position] = false
           else
-            -- New note pressed
+            -- New note pressed, set pitch and enable trigger
             tracks[1][page].pitches[x] = y
             tracks[1][page].triggers[position] = true
           end
