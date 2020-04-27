@@ -20,6 +20,7 @@
 -- TODO Use 0 as value for pitches instead of separate triggers table? Advantage of triggers table is slightly easier code (if trigger vs if pitch == 0)
 -- TODO Add morph
 -- TODO Add randomize
+-- TODO Add some form of rythmic variation similar to offsets for pitches
 
 local music = require "musicutil"
 local TU = require "tabutil"
@@ -28,10 +29,29 @@ local UI = require "ui"
 local running = false
 local divisor = 4
 local grid_buttons_pressed = {}
-local pages = {pitch = 1, offset = 2}
-local index_to_pages = {"pitch", "offset", "triggers"}
+local pages = {
+  pitch = {
+    index = 1,
+    subpage = false,
+    type = "steps",
+    loop = true
+  },
+  triggers = {
+    index = 2,
+    subpage = true,
+    type = "ticks",
+    loop = false
+  },
+  offset = {
+    index = 3,
+    subpage = false,
+    type = "steps",
+    loop = true
+  }
+}
+local index_to_pages = {"pitch", "triggers", "offset"}
 local page = "pitch"
-local subpage = "pitches"
+local blink = true
 
 -- Tracks
 tracks = {}
@@ -39,20 +59,19 @@ tracks = {}
 tracks[1] = {}
 tracks[1].pitch = {}
 tracks[1].pitch.pitches = {}
-tracks[1].pitch.triggers = {}
 tracks[1].pitch.position = 1
 tracks[1].pitch.loop_start = 1 -- or start_point and end_point?
 tracks[1].pitch.loop_end = 96
 tracks[1].pitch.new_loop_set = false
 tracks[1].pitch.transpose = {}
+tracks[1].triggers = {}
 tracks[1].offset = {}
 tracks[1].offset.pitches = {}
-tracks[1].offset.triggers = {}
 tracks[1].offset.position = 1
 tracks[1].offset.loop_start = 1
 tracks[1].offset.loop_end = 96
 tracks[1].offset.new_loop_set = false
-tracks[1].controls = {pitch = false, offset = false, triggers = false}
+tracks[1].controls = {pitch = false, triggers = false, offset = false}
 -- end
 
 
@@ -65,21 +84,21 @@ scale = music.generate_scale_of_length(8, "major", 14)
 
 function init()
   for i=1,16 do
-    table.insert(tracks[1].pitch.pitches, math.random(7))
+    -- table.insert(tracks[1].pitch.pitches, math.random(7))
+    table.insert(tracks[1].pitch.pitches, 7)
     table.insert(tracks[1].pitch.transpose, 0)
     table.insert(tracks[1].offset.pitches, 0)
   end
   for i=1,96 do
     if i % 6 == 1 then
-      table.insert(tracks[1].pitch.triggers, true)
+      table.insert(tracks[1].triggers, true)
     else
-      table.insert(tracks[1].pitch.triggers, false)
+      table.insert(tracks[1].triggers, false)
     end
-    table.insert(tracks[1].offset.triggers, false)
   end
   grid_redraw()
-  -- TU.print(tracks[1].pitch.triggers)
-  -- print(tracks[1].pitch.triggers[1])
+  -- TU.print(tracks[1].triggers)
+  -- print(tracks[1].triggers[1])
 
   crow.output[1].action = "pulse(0.01, 8, 1)"
 
@@ -90,6 +109,14 @@ function init()
     while true do
       clock.sleep(1/30)
       redraw()
+    end
+  end)
+
+  -- secondary page blink interval
+  clock.run(function()
+    while true do
+      clock.sleep(1/2)
+      blink = not blink
     end
   end)
 
@@ -107,10 +134,10 @@ function tick()
     clock.sync(1 / (divisor * 6)) -- 24ppqn = 6 ticks per beat
       if running then
         -- print(tracks[1].pitch.position)
-        -- print(tracks[1].pitch.triggers[tracks[1].pitch.position])
-        if tracks[1].pitch.triggers[tracks[1].pitch.position] then
+        -- print(tracks[1].triggers[tracks[1].pitch.position])
+        if tracks[1].triggers[tracks[1].pitch.position] then
           local note_num = 8 - tracks[1].pitch.pitches[math.ceil(tracks[1].pitch.position / 6)]
-          if tracks[1].offset.triggers[(math.ceil(tracks[1].offset.position / 6) * 6) - 5] then
+          if tracks[1].offset.pitches[math.ceil(tracks[1].offset.position / 6)] ~= 0 then
             note_num = note_num + (8 - tracks[1].offset.pitches[math.ceil(tracks[1].offset.position / 6)])
           end
           local note_value = scale[note_num]/12
@@ -202,22 +229,13 @@ g.key = function(x,y,z)
       tracks[1].controls[index_to_pages[x]] = true
     elseif z == 0 then
       -- key released
-      if x == 1 then
-        page = "pitch"
-        subpage = "pitches"
-      elseif x == 2 then
-        page = "offset"
-        subpage = "pitches"
-      elseif x == 3 then
-        page = "pitch"
-        subpage = "triggers"
-      end
+      page = index_to_pages[x]
       tracks[1].controls[index_to_pages[x]] = false
     end
   else
     -- Page controls
     if z == 1 then -- key pressed
-      if tracks[1].controls[page] and subpage == "pitches" then
+      if tracks[1].controls[page] and pages[page]["loop"] then
         -- Set loop start and end points when page button is pressed
         table.insert(grid_buttons_pressed, x)
         if #grid_buttons_pressed == 2 then
@@ -228,29 +246,37 @@ g.key = function(x,y,z)
         end
       else
         -- Page button isn't pressed, set page specific properties (pitches, triggers, etc)
-        if subpage == "pitches" then
+        if page == "pitch" then
           position = ((x - 1) * 6) + 1 -- Calculate step position from tick position
-          if tracks[1][page].triggers[position] and tracks[1][page].pitches[x] == y then
+          if tracks[1].triggers[position] and tracks[1][page].pitches[x] == y then
             -- Existing note pressed, turn off step
-            tracks[1][page].triggers[position] = false
+            tracks[1].triggers[position] = false
           else
             -- New note pressed, set pitch and enable trigger
             tracks[1][page].pitches[x] = y
-            tracks[1][page].triggers[position] = true
+            tracks[1].triggers[position] = true
           end
-        elseif subpage == "triggers" and y > 1 then
+        elseif page == "triggers" then
           -- Only trigger on row 2-7 because we only have 6 triggers per step
           position = ((x - 1) * 6) + (8 - y)
-          if tracks[1][page].triggers[position] then
+          if tracks[1].triggers[position] then
             -- Existing trigger pressed, turn off
-            tracks[1][page].triggers[position] = false
+            tracks[1].triggers[position] = false
           else
             -- New trigger pressed
-            tracks[1][page].triggers[position] = true
+            tracks[1].triggers[position] = true
+          end
+        elseif page == "offset" then
+          if tracks[1][page].pitches[x] == y then
+            -- Existing offset pressed, turn off
+            tracks[1][page].pitches[x] = 0
+          else
+            -- New offset pressed, set it
+            tracks[1][page].pitches[x] = y
           end
         end
       end
-      TU.print(tracks[1][page].triggers)
+      -- TU.print(tracks[1][page])
     elseif z == 0 then -- key released
       if #grid_buttons_pressed == 1 then -- If there's still a single page key pressed
         if not tracks[1][page].new_loop_set then -- Check if new loop start and end points have been set
@@ -269,22 +295,25 @@ g.key = function(x,y,z)
 end
 
 function grid_redraw()
+  -- print(page)
   g:all(0)
   -- Draw pages
   for i=1,16 do
     local BRIGHTNESS_LOW = 4
     local BRIGHTNESS_MID = 8
     local BRIGHTNESS_HIGH = 15
-    if i < math.ceil(tracks[1][page].loop_start / 6) or i > math.ceil(tracks[1][page].loop_end / 6) then
-      BRIGHTNESS_MID = 4
+    if pages[page]["loop"] then
+      if i < math.ceil(tracks[1][page].loop_start / 6) or i > math.ceil(tracks[1][page].loop_end / 6) then
+        BRIGHTNESS_MID = 4
+      end
     end
-    if subpage == "pitches" then
+    if page == "pitch" then
       -- Check if there's at least one trigger enabled for this step
       -- Also check if this step's trigger itself is enabled
       click = false
       step = false
       for j=1,6 do
-        if tracks[1][page].triggers[((i-1) * 6) + j] then
+        if tracks[1].triggers[((i-1) * 6) + j] then
           if j == 1 then
             step = true
           end
@@ -295,28 +324,40 @@ function grid_redraw()
       -- if not but any other trigger for this step is enabled it's low
       -- and if there is no trigger enabled for this step at all it's off but we show a moving cursor at the top row
       if step then
-        g:led(i,tracks[1][page].pitches[i],i==math.ceil(tracks[1][page].position / 6) and BRIGHTNESS_HIGH or BRIGHTNESS_MID)
+        g:led(i, tracks[1][page].pitches[i], i==math.ceil(tracks[1][page].position / 6) and BRIGHTNESS_HIGH or BRIGHTNESS_MID)
       elseif click then
-        g:led(i,tracks[1][page].pitches[i],i==math.ceil(tracks[1][page].position / 6) and BRIGHTNESS_HIGH or BRIGHTNESS_LOW)
+        g:led(i, tracks[1][page].pitches[i], i==math.ceil(tracks[1][page].position / 6) and BRIGHTNESS_HIGH or BRIGHTNESS_LOW)
       else
         g:led(i,1,i==math.ceil(tracks[1][page].position / 6) and BRIGHTNESS_LOW or 0)
       end
-    elseif subpage == "triggers" then
+    elseif page == "triggers" then
       for j=1,6 do -- 24ppqn = 6 ticks per 16th note
-        if tracks[1][page].triggers[((i-1) * 6) + j] then
-          g:led(i,8-j,j==(tracks[1][page].position - ((i-1) * 6)) and BRIGHTNESS_HIGH or BRIGHTNESS_MID)
+        if tracks[1][page][((i-1) * 6) + j] then
+          g:led(i,8-j,j==(tracks[1].pitch.position - ((i-1) * 6)) and BRIGHTNESS_HIGH or BRIGHTNESS_MID)
         else
-          g:led(i,8-j,j==(tracks[1][page].position - ((i-1) * 6)) and 3 or 0)
+          g:led(i,8-j,j==(tracks[1].pitch.position - ((i-1) * 6)) and 3 or 0)
         end
+      end
+    elseif page == "offset" then
+      -- Set brightness. If this step has an offset and is currently playing it's high, if not and this step has an offset it's mid
+      -- if there is no offset enabled for this step it's off but we show a moving cursor at the top row
+      if tracks[1][page].pitches[i] ~= 0 then
+        g:led(i, tracks[1][page].pitches[i], i==math.ceil(tracks[1][page].position / 6) and BRIGHTNESS_HIGH or BRIGHTNESS_MID)
+      else
+        g:led(i,1,i==math.ceil(tracks[1][page].position / 6) and BRIGHTNESS_LOW or 0)
       end
     end
   end
   -- Draw global controls
   for k, v in pairs(pages) do
     if k == page then
-      g:led(pages[k],8,11)
+      if pages[page]["subpage"] and not blink then
+        g:led(pages[k]["index"], 8, 0)
+      else
+        g:led(pages[k]["index"], 8, 11)
+      end
     else
-      g:led(pages[k],8,4)
+      g:led(pages[k]["index"], 8, 4)
     end
   end
   g:refresh()
