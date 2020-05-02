@@ -13,6 +13,8 @@
 -- TODO Enabling/disabling pitches should not change triggers if any trigger is set (I think)
 -- TODO Move some commonly used stuff to functions? Like calculation the step from the click. Or add an attribute to store the step maybe?
 
+-- TODO Separate triggers from pitches? I.e. give them their own position
+--      Not entirely sure how to make sure they can stay in sync
 -- TODO How to blink grid key when looping single key/position?
 -- TODO Keep transpose and offset separate? Not sure of the pros and cons
 -- TODO Use octave or 8(or 7) scale "steps" (as many as fit on a grid) for transposing?
