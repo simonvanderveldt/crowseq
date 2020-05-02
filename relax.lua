@@ -10,7 +10,6 @@
 -- KEY3 = restart sequence
 
 
--- TODO Enabling/disabling pitches should not change triggers if any trigger is set (I think)
 -- TODO Move some commonly used stuff to functions? Like calculation the step from the click. Or add an attribute to store the step maybe?
 
 -- TODO Separate triggers from pitches? I.e. give them their own position
@@ -83,6 +82,24 @@ local playback_icon = UI.PlaybackIcon.new(121, 55)
 -- mode = math.random(#music.SCALES)
 -- TU.print(music.SCALES)
 scale = music.generate_scale_of_length(8, "major", 14)
+
+
+function has_trigger(step)
+  -- Check if there is a trigger enabled on any of the ticks of the given step
+  -- Returns true for tick is any tick has a trigger enabled
+  -- Returns true for step if the trigger for the first tick of a step is enabled
+  local tick_trigger = false
+  local step_trigger = false
+  for i=1,6 do
+    if tracks[1].triggers[((step - 1) * 6) + i] then
+      if i == 1 then
+        step_trigger = true
+      end
+      tick_trigger = true
+    end
+  end
+  return step_trigger, tick_trigger
+end
 
 function init()
   for i=1,16 do
@@ -227,10 +244,10 @@ g.key = function(x,y,z)
   if y == 8 then
     -- Global controls
     if z == 1 then
-      -- key pressed
+      -- Key pressed
       tracks[1].controls[index_to_pages[x]] = true
     elseif z == 0 then
-      -- key released
+      -- Key released
       page = index_to_pages[x]
       tracks[1].controls[index_to_pages[x]] = false
     end
@@ -249,14 +266,23 @@ g.key = function(x,y,z)
       else
         -- Page button isn't pressed, set page specific properties (pitches, triggers, etc)
         if page == "pitch" then
-          position = ((x - 1) * 6) + 1 -- Calculate step position from tick position
-          if tracks[1].triggers[position] and tracks[1][page].pitches[x] == y then
-            -- Existing note pressed, turn off step
-            tracks[1].triggers[position] = false
+          local step_trigger, tick_trigger = has_trigger(x)
+          local tick_position = ((x - 1) * 6) + 1 -- Calculate tick position from step position
+          if tick_trigger then
+            -- Step with one or more triggers enabled
+            if tracks[1][page].pitches[x] == y then
+              -- Existing pitch pressed, turn off all triggers for this step
+              for i=tick_position,(tick_position + 5) do
+                tracks[1].triggers[i] = false
+              end
+            else
+              -- New pitch pressed, only change pitch, keep triggers as is
+              tracks[1][page].pitches[x] = y
+            end
           else
-            -- New note pressed, set pitch and enable trigger
+            -- Step with no triggers pressed, set pitch and enable trigger on tick 1 of the step
             tracks[1][page].pitches[x] = y
-            tracks[1].triggers[position] = true
+            tracks[1].triggers[tick_position] = true
           end
         elseif page == "triggers" then
           -- Only trigger on row 2-7 because we only have 6 triggers per step
@@ -310,24 +336,14 @@ function grid_redraw()
       end
     end
     if page == "pitch" then
-      -- Check if there's at least one trigger enabled for this step
-      -- Also check if this step's trigger itself is enabled
-      click = false
-      step = false
-      for j=1,6 do
-        if tracks[1].triggers[((i-1) * 6) + j] then
-          if j == 1 then
-            step = true
-          end
-          click = true
-        end
-      end
+      -- Check if there is/are trigger(s) enabled for this step
+      local step_trigger, tick_trigger = has_trigger(i)
       -- Set brightness. If this step is currently playing it's high, if not and this step's trigger is enabled it's mid
       -- if not but any other trigger for this step is enabled it's low
       -- and if there is no trigger enabled for this step at all it's off but we show a moving cursor at the top row
-      if step then
+      if step_trigger then
         g:led(i, tracks[1][page].pitches[i], i==math.ceil(tracks[1][page].position / 6) and BRIGHTNESS_HIGH or BRIGHTNESS_MID)
-      elseif click then
+      elseif tick_trigger then
         g:led(i, tracks[1][page].pitches[i], i==math.ceil(tracks[1][page].position / 6) and BRIGHTNESS_HIGH or BRIGHTNESS_LOW)
       else
         g:led(i,1,i==math.ceil(tracks[1][page].position / 6) and BRIGHTNESS_LOW or 0)
