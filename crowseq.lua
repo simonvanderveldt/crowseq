@@ -10,8 +10,6 @@
 -- KEY3 = restart sequence
 
 
--- TODO Move some commonly used stuff to functions? Like calculation the step from the click. Or add an attribute to store the step maybe?
-
 -- TODO Separate triggers from pitches? I.e. give them their own position
 --      Not entirely sure how to make sure they can stay in sync
 -- TODO How to blink grid key when looping single key/position?
@@ -75,18 +73,15 @@ tracks[1].offset.new_loop_set = false
 tracks[1].controls = {pitch = false, triggers = false, offset = false}
 -- end
 
-
 local task_id = nil
 local playback_icon = UI.PlaybackIcon.new(121, 55)
 
--- mode = math.random(#music.SCALES)
--- TU.print(music.SCALES)
 scale = music.generate_scale_of_length(8, "major", 14)
 
 
 function has_trigger(step)
   -- Check if there is a trigger enabled on any of the ticks of the given step
-  -- Returns true for tick is any tick has a trigger enabled
+  -- Returns true for tick if any tick has a trigger enabled
   -- Returns true for step if the trigger for the first tick of a step is enabled
   local tick_trigger = false
   local step_trigger = false
@@ -99,6 +94,16 @@ function has_trigger(step)
     end
   end
   return step_trigger, tick_trigger
+end
+
+function tick_to_step(tick)
+  -- Calculate the step for a given tick
+  return math.ceil(tick / 6)
+end
+
+function step_to_tick(step)
+  -- Calculate the tick for a given step
+  return (step * 6) - 5
 end
 
 function init()
@@ -155,12 +160,12 @@ function tick()
         -- print(tracks[1].pitch.position)
         -- print(tracks[1].triggers[tracks[1].pitch.position])
         if tracks[1].triggers[tracks[1].pitch.position] then
-          local note_num = 8 - tracks[1].pitch.pitches[math.ceil(tracks[1].pitch.position / 6)]
-          if tracks[1].offset.pitches[math.ceil(tracks[1].offset.position / 6)] ~= 0 then
-            note_num = note_num + (8 - tracks[1].offset.pitches[math.ceil(tracks[1].offset.position / 6)])
+          local note_num = 8 - tracks[1].pitch.pitches[tick_to_step(tracks[1].pitch.position)]
+          if tracks[1].offset.pitches[tick_to_step(tracks[1].offset.position)] ~= 0 then
+            note_num = note_num + (8 - tracks[1].offset.pitches[tick_to_step(tracks[1].offset.position)])
           end
           local note_value = scale[note_num]/12
-          crow.output[2].volts = note_value + tracks[1].pitch.transpose[math.ceil(tracks[1].pitch.position / 6)]
+          crow.output[2].volts = note_value + tracks[1].pitch.transpose[tick_to_step(tracks[1].pitch.position)]
           crow.output[1].execute()
         end
         -- Increment tracks[1].pitch.position. Wrap tracks[1].pitch.loop_start in case the current tracks[1].pitch.position is at tracks[1].pitch.loop_end
@@ -243,11 +248,9 @@ g = grid.connect()
 g.key = function(x,y,z)
   if y == 8 then
     -- Global controls
-    if z == 1 then
-      -- Key pressed
+    if z == 1 then -- Key pressed
       tracks[1].controls[index_to_pages[x]] = true
-    elseif z == 0 then
-      -- Key released
+    elseif z == 0 then -- Key released
       page = index_to_pages[x]
       tracks[1].controls[index_to_pages[x]] = false
     end
@@ -259,15 +262,15 @@ g.key = function(x,y,z)
         table.insert(grid_buttons_pressed, x)
         if #grid_buttons_pressed == 2 then
           -- When 2 buttons are pressed immediately set loop start and end point
-          tracks[1][page].loop_start = (math.min(grid_buttons_pressed[1], grid_buttons_pressed[2]) * 6) - 5
-          tracks[1][page].loop_end = math.max(grid_buttons_pressed[1], grid_buttons_pressed[2]) * 6
+          tracks[1][page].loop_start = step_to_tick(math.min(grid_buttons_pressed[1], grid_buttons_pressed[2]))
+          tracks[1][page].loop_end = step_to_tick(math.max(grid_buttons_pressed[1], grid_buttons_pressed[2])) + 5
           tracks[1][page].new_loop_set = true
         end
       else
         -- Page button isn't pressed, set page specific properties (pitches, triggers, etc)
         if page == "pitch" then
           local step_trigger, tick_trigger = has_trigger(x)
-          local tick_position = ((x - 1) * 6) + 1 -- Calculate tick position from step position
+          local tick_position = step_to_tick(x)
           if tick_trigger then
             -- Step with one or more triggers enabled
             if tracks[1][page].pitches[x] == y then
@@ -286,13 +289,15 @@ g.key = function(x,y,z)
           end
         elseif page == "triggers" then
           -- Only trigger on row 2-7 because we only have 6 triggers per step
-          position = ((x - 1) * 6) + (8 - y)
-          if tracks[1].triggers[position] then
-            -- Existing trigger pressed, turn off
-            tracks[1].triggers[position] = false
-          else
-            -- New trigger pressed
-            tracks[1].triggers[position] = true
+          if y ~= 1 then
+            position = ((x - 1) * 6) + (8 - y)
+            if tracks[1].triggers[position] then
+              -- Existing trigger pressed, turn off
+              tracks[1].triggers[position] = false
+            else
+              -- New trigger pressed
+              tracks[1].triggers[position] = true
+            end
           end
         elseif page == "offset" then
           if tracks[1][page].pitches[x] == y then
@@ -309,8 +314,8 @@ g.key = function(x,y,z)
       if #grid_buttons_pressed == 1 then -- If there's still a single page key pressed
         if not tracks[1][page].new_loop_set then -- Check if new loop start and end points have been set
           -- If not, we've got a single keypress whilst the page button was pressed so create a single step loop
-          tracks[1][page].loop_start = (grid_buttons_pressed[1] * 6) - 5
-          tracks[1][page].loop_end = grid_buttons_pressed[1] * 6
+          tracks[1][page].loop_start = step_to_tick(grid_buttons_pressed[1])
+          tracks[1][page].loop_end = step_to_tick(grid_buttons_pressed[1]) + 5
         else
           -- New loop start and end points have been set before, since we've just released the remaining single button
           -- we can now set our "dirty" flag to false again
@@ -331,7 +336,7 @@ function grid_redraw()
     local BRIGHTNESS_MID = 8
     local BRIGHTNESS_HIGH = 15
     if pages[page]["loop"] then
-      if i < math.ceil(tracks[1][page].loop_start / 6) or i > math.ceil(tracks[1][page].loop_end / 6) then
+      if i < tick_to_step(tracks[1][page].loop_start) or i > tick_to_step(tracks[1][page].loop_end) then
         BRIGHTNESS_MID = 4
       end
     end
@@ -342,11 +347,11 @@ function grid_redraw()
       -- if not but any other trigger for this step is enabled it's low
       -- and if there is no trigger enabled for this step at all it's off but we show a moving cursor at the top row
       if step_trigger then
-        g:led(i, tracks[1][page].pitches[i], i==math.ceil(tracks[1][page].position / 6) and BRIGHTNESS_HIGH or BRIGHTNESS_MID)
+        g:led(i, tracks[1][page].pitches[i], i==tick_to_step(tracks[1][page].position) and BRIGHTNESS_HIGH or BRIGHTNESS_MID)
       elseif tick_trigger then
-        g:led(i, tracks[1][page].pitches[i], i==math.ceil(tracks[1][page].position / 6) and BRIGHTNESS_HIGH or BRIGHTNESS_LOW)
+        g:led(i, tracks[1][page].pitches[i], i==tick_to_step(tracks[1][page].position) and BRIGHTNESS_HIGH or BRIGHTNESS_LOW)
       else
-        g:led(i,1,i==math.ceil(tracks[1][page].position / 6) and BRIGHTNESS_LOW or 0)
+        g:led(i,1,i==tick_to_step(tracks[1][page].position) and BRIGHTNESS_LOW or 0)
       end
     elseif page == "triggers" then
       for j=1,6 do -- 24ppqn = 6 ticks per 16th note
@@ -360,9 +365,9 @@ function grid_redraw()
       -- Set brightness. If this step has an offset and is currently playing it's high, if not and this step has an offset it's mid
       -- if there is no offset enabled for this step it's off but we show a moving cursor at the top row
       if tracks[1][page].pitches[i] ~= 0 then
-        g:led(i, tracks[1][page].pitches[i], i==math.ceil(tracks[1][page].position / 6) and BRIGHTNESS_HIGH or BRIGHTNESS_MID)
+        g:led(i, tracks[1][page].pitches[i], i==tick_to_step(tracks[1][page].position) and BRIGHTNESS_HIGH or BRIGHTNESS_MID)
       else
-        g:led(i,1,i==math.ceil(tracks[1][page].position / 6) and BRIGHTNESS_LOW or 0)
+        g:led(i,1,i==tick_to_step(tracks[1][page].position) and BRIGHTNESS_LOW or 0)
       end
     end
   end
