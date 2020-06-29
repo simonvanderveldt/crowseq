@@ -1,13 +1,13 @@
--- physical: clock edition
--- norns study 4
+-- Crowseq
 --
--- grid controls arpeggio
--- midi controls root note
--- ENC1 = bpm
--- ENC2 = divisor
--- ENC3 = scale
--- KEY2 = hold
--- KEY3 = restart sequence
+-- PAGE1 = controls pitch
+-- PAGE2 = controls triggers
+-- PAGE3 = controls pitch offset
+-- ENC1 = BPM
+-- ENC2 = division
+-- ENC3 = transpose
+-- KEY2 = reset/stop
+-- KEY3 = play/pause
 
 
 -- TODO Separate triggers from pitches? I.e. give them their own position
