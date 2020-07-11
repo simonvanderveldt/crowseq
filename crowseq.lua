@@ -10,17 +10,19 @@
 -- KEY3 = play/pause
 
 
--- TODO Add page for transpose
+-- TODO Questions about transpose feature/page
 --      Does this somehow depend on the scale/mode? We can only show 7 pitches per page, so transpose would be transpose by one page height (i.e. 7 pitches)?
 --      What about "normal"/per octave transpose? Is the fact that tranposing a full page is exactly an octave just a coincidence? Because of the chosen scale (scale = music.generate_scale_of_length(8, "major", 14))?
+--      Should it simply be called octave and always just transpose by a full octave like on Ansible/Kria?
+--      Should it be loopable like pitch and offset?
 -- TODO Separate triggers from pitches? I.e. give them their own position
 --      Not entirely sure how to make sure they can stay in sync
 -- TODO How to blink grid key when looping single key/position?
--- TODO Use absolute value per step or grid based value (1-8) together with separate transpose table?
--- TODO Use 0 as value for pitches instead of separate triggers table? Advantage of triggers table is slightly easier code (if trigger vs if pitch == 0)
+-- TODO Use absolute value per step or grid based value (1-8) together with separate transpose function/table?
 -- TODO Add morph
 -- TODO Add randomize
 -- TODO Add some form of rythmic variation similar to offsets for pitches
+-- TODO Add Euclidean sequencer, horizontal, 16 steps. ENC2 increases enabled steps, ENC3 rotates, track+start&end sets length and loop start&end
 
 local music = require "musicutil"
 local TU = require "tabutil"
@@ -47,9 +49,15 @@ local pages = {
     subpage = false,
     type = "steps",
     loop = true
-  }
+  },
+  transpose = {
+    index = 4,
+    subpage = false,
+    type = "steps",
+    loop = false
+  },
 }
-local index_to_pages = {"pitch", "triggers", "offset"}
+local index_to_pages = {"pitch", "triggers", "offset", "transpose"}
 local page = "pitch"
 
 
@@ -63,7 +71,6 @@ tracks[1].pitch.position = 1
 tracks[1].pitch.loop_start = 1 -- or start_point and end_point?
 tracks[1].pitch.loop_end = 96
 tracks[1].pitch.new_loop_set = false
-tracks[1].pitch.transpose = {}
 tracks[1].triggers = {}
 tracks[1].offset = {}
 tracks[1].offset.pitches = {}
@@ -71,6 +78,7 @@ tracks[1].offset.position = 1
 tracks[1].offset.loop_start = 1
 tracks[1].offset.loop_end = 96
 tracks[1].offset.new_loop_set = false
+tracks[1].transpose = {}
 tracks[1].controls = {pitch = false, triggers = false, offset = false}
 -- end
 
@@ -107,12 +115,22 @@ function step_to_tick(step)
   return (step * 6) - 5
 end
 
+function get_offset_from_key(key_y)
+  -- We're centered around row 4
+  return 4 - key_y
+end
+
+function get_key_from_offset(offset)
+  -- We're centered around row 4
+  return 4 - offset
+end
+
 function init()
   for i=1,16 do
     -- table.insert(tracks[1].pitch.pitches, math.random(7))
     table.insert(tracks[1].pitch.pitches, 7)
-    table.insert(tracks[1].pitch.transpose, 0)
     table.insert(tracks[1].offset.pitches, 0)
+    table.insert(tracks[1].transpose, 0)
   end
   for i=1,96 do
     if i % 6 == 1 then
@@ -158,7 +176,7 @@ function tick()
             note_num = note_num + (8 - tracks[1].offset.pitches[tick_to_step(tracks[1].offset.position)])
           end
           local note_value = scale[note_num]/12
-          crow.output[2].volts = note_value + tracks[1].pitch.transpose[tick_to_step(tracks[1].pitch.position)]
+          crow.output[2].volts = note_value + tracks[1].transpose[tick_to_step(tracks[1].pitch.position)]
           crow.output[1].execute()
         end
         -- Increment tracks[1].pitch.position. Wrap tracks[1].pitch.loop_start in case the current tracks[1].pitch.position is at tracks[1].pitch.loop_end
@@ -198,20 +216,20 @@ function enc(n,d)
   elseif n == 3 then
     -- Transpose
     -- This is wrong/upside down. Not sure what the best way to "flip" the grid is
-    -- TU.print(tracks[1].pitch.transpose)
+    -- TU.print(tracks[1].transpose)
     for step, pitch in pairs(tracks[1].pitch.pitches) do
       local new_pitch = pitch - d
       if new_pitch < 1 then
         tracks[1].pitch.pitches[step] = 7
-        tracks[1].pitch.transpose[step] = util.clamp(tracks[1].pitch.transpose[step] + 1, -3, 3)
+        tracks[1].transpose[step] = util.clamp(tracks[1].transpose[step] + 1, -3, 3)
       elseif new_pitch > 7 then
         tracks[1].pitch.pitches[step] = 1
-        tracks[1].pitch.transpose[step] = util.clamp(tracks[1].pitch.transpose[step] - 1, -3, 3)
+        tracks[1].transpose[step] = util.clamp(tracks[1].transpose[step] - 1, -3, 3)
       else
         tracks[1].pitch.pitches[step] = new_pitch
       end
-      print(step, pitch, new_pitch, tracks[1].pitch.transpose[step])
-      -- TU.print(tracks[1].pitch.transpose)
+      print(step, pitch, new_pitch, tracks[1].transpose[step])
+      -- TU.print(tracks[1].transpose)
     end
   end
 end
@@ -224,7 +242,6 @@ function redraw()
   screen.move(0, 14)
   screen.line(128, 14)
   screen.stroke()
-  -- screen.text("transp: "..tracks[1].pitch.transpose)
   playback_icon:redraw()
   screen.update()
 end
@@ -233,6 +250,7 @@ end
 g = grid.connect()
 
 g.key = function(x,y,z)
+  print(x, y, z)
   if y == 8 then
     -- Global controls
     if z == 1 then -- Key pressed
@@ -294,6 +312,8 @@ g.key = function(x,y,z)
             -- New offset pressed, set it
             tracks[1][page].pitches[x] = y
           end
+        elseif page == "transpose" then
+          tracks[1][page][x] = get_offset_from_key(y)
         end
       end
       -- TU.print(tracks[1][page])
@@ -315,13 +335,13 @@ g.key = function(x,y,z)
 end
 
 function grid_redraw()
+  local BRIGHTNESS_LOW = 4
+  local BRIGHTNESS_MID = 8
+  local BRIGHTNESS_HIGH = 11
   -- print(page)
   g:all(0)
   -- Draw pages
   for i=1,16 do
-    local BRIGHTNESS_LOW = 4
-    local BRIGHTNESS_MID = 8
-    local BRIGHTNESS_HIGH = 15
     if pages[page]["loop"] then
       if i < tick_to_step(tracks[1][page].loop_start) or i > tick_to_step(tracks[1][page].loop_end) then
         BRIGHTNESS_MID = 4
@@ -356,14 +376,22 @@ function grid_redraw()
       else
         g:led(i,1,i==tick_to_step(tracks[1][page].position) and BRIGHTNESS_LOW or 0)
       end
+    elseif page == "transpose" then
+      -- Show per step transpose
+      -- Transpose is centered around the 4th row from the top, positive upward and negative downward
+      local key_y = get_key_from_offset(tracks[1][page][i])
+      if key_y ~= 4 then
+        g:led(i, 4, BRIGHTNESS_LOW)
+      end
+      g:led(i, key_y, i==tick_to_step(tracks[1].pitch.position) and BRIGHTNESS_HIGH or BRIGHTNESS_MID)
     end
   end
   -- Draw global controls
   for k, v in pairs(pages) do
     if k == page then
-      g:led(pages[k]["index"], 8, 11)
+      g:led(pages[k]["index"], 8, BRIGHTNESS_HIGH)
     else
-      g:led(pages[k]["index"], 8, 4)
+      g:led(pages[k]["index"], 8, BRIGHTNESS_LOW)
     end
   end
   g:refresh()
