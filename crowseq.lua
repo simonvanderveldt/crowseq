@@ -10,11 +10,12 @@
 -- KEY3 = play/pause
 
 
+-- TODO Add page for transpose
+--      Does this somehow depend on the scale/mode? We can only show 7 pitches per page, so transpose would be transpose by one page height (i.e. 7 pitches)?
+--      What about "normal"/per octave transpose? Is the fact that tranposing a full page is exactly an octave just a coincidence? Because of the chosen scale (scale = music.generate_scale_of_length(8, "major", 14))?
 -- TODO Separate triggers from pitches? I.e. give them their own position
 --      Not entirely sure how to make sure they can stay in sync
 -- TODO How to blink grid key when looping single key/position?
--- TODO Keep transpose and offset separate? Not sure of the pros and cons
--- TODO Use octave or 8(or 7) scale "steps" (as many as fit on a grid) for transposing?
 -- TODO Use absolute value per step or grid based value (1-8) together with separate transpose table?
 -- TODO Use 0 as value for pitches instead of separate triggers table? Advantage of triggers table is slightly easier code (if trigger vs if pitch == 0)
 -- TODO Add morph
@@ -202,29 +203,23 @@ function enc(n,d)
     params:delta("clock_tempo",d)
   elseif n == 2 then
     divisor = util.clamp(divisor + d,1,8)
-  -- elseif n == 3 then
-  --   mode = util.clamp(mode + d, 1, #music.SCALES)
-  --   scale = music.generate_scale_of_length(60,music.SCALES[mode].name,8)
   elseif n == 3 then
     -- Transpose
     -- This is wrong/upside down. Not sure what the best way to "flip" the grid is
     -- TU.print(tracks[1].pitch.transpose)
-    for k, v in pairs(tracks[1].pitch.pitches) do
-      if v ~= 0 then
-        local new_v = v - d
-        if new_v < 1 then
-          tracks[1].pitch.pitches[k] = 7
-          tracks[1].pitch.transpose[k] = util.clamp(tracks[1].pitch.transpose[k] + 1, -3, 3)
-        elseif new_v > 7 then
-          tracks[1].pitch.pitches[k] = 1
-          tracks[1].pitch.transpose[k] = util.clamp(tracks[1].pitch.transpose[k] - 1, -3, 3)
-        else
-          tracks[1].pitch.pitches[k] = new_v
-        end
+    for step, pitch in pairs(tracks[1].pitch.pitches) do
+      local new_pitch = pitch - d
+      if new_pitch < 1 then
+        tracks[1].pitch.pitches[step] = 7
+        tracks[1].pitch.transpose[step] = util.clamp(tracks[1].pitch.transpose[step] + 1, -3, 3)
+      elseif new_pitch > 7 then
+        tracks[1].pitch.pitches[step] = 1
+        tracks[1].pitch.transpose[step] = util.clamp(tracks[1].pitch.transpose[step] - 1, -3, 3)
+      else
+        tracks[1].pitch.pitches[step] = new_pitch
       end
-      -- print(k, tracks[1].pitch.pitches[k])
+      print(step, pitch, new_pitch, tracks[1].pitch.transpose[step])
       -- TU.print(tracks[1].pitch.transpose)
-      -- grid_redraw()
     end
   end
 end
