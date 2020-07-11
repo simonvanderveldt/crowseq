@@ -51,7 +51,7 @@ local pages = {
 }
 local index_to_pages = {"pitch", "triggers", "offset"}
 local page = "pitch"
-local blink = true
+
 
 -- Tracks
 tracks = {}
@@ -134,14 +134,6 @@ function init()
     while true do
       clock.sleep(1/30)
       redraw()
-    end
-  end)
-
-  -- secondary page blink interval
-  clock.run(function()
-    while true do
-      clock.sleep(1/2)
-      blink = not blink
     end
   end)
 
@@ -369,11 +361,7 @@ function grid_redraw()
   -- Draw global controls
   for k, v in pairs(pages) do
     if k == page then
-      if pages[page]["subpage"] and not blink then
-        g:led(pages[k]["index"], 8, 0)
-      else
-        g:led(pages[k]["index"], 8, 11)
-      end
+      g:led(pages[k]["index"], 8, 11)
     else
       g:led(pages[k]["index"], 8, 4)
     end
