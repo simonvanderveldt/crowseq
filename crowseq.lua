@@ -65,7 +65,7 @@ local track = 1
 
 -- Tracks
 tracks = {}
-for i = 1,2 do
+for i = 1,4 do
   tracks[i] = {}
   tracks[i].pitch = {}
   tracks[i].pitch.pitches = {}
@@ -128,14 +128,14 @@ function get_key_from_offset(offset)
 end
 
 function init()
-  for i=1,2 do
-    for j=1,16 do
+  for i = 1,#tracks do
+    for j = 1,16 do
       -- table.insert(tracks[track].pitch.pitches, math.random(7))
       table.insert(tracks[i].pitch.pitches, 7)
       table.insert(tracks[i].offset.pitches, 0)
       table.insert(tracks[i].transpose, 0)
     end
-    for j=1,96 do
+    for j = 1,96 do
       if j % 6 == 1 then
         table.insert(tracks[i].triggers, true)
       else
@@ -171,7 +171,7 @@ function tick()
   while true do
     clock.sync(1 / (divisor * 6)) -- 24ppqn = 6 ticks per beat
       if running then
-        for i=1,2 do
+        for i = 1,#tracks do
           -- print(tracks[track].pitch.position)
           -- print(tracks[track].triggers[tracks[track].pitch.position])
           if tracks[i].triggers[tracks[i].pitch.position] then
@@ -393,7 +393,7 @@ function grid_redraw()
   end
   -- Draw global controls
 
-  for i=1,2 do
+  for i = 1,#tracks do
     for k, v in pairs(pages) do
       if i == track and k == page then
         g:led(((i - 1) * 4) + pages[k]["index"], 8, BRIGHTNESS_HIGH)
