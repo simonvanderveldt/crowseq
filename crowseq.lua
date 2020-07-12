@@ -10,6 +10,7 @@
 -- KEY3 = play/pause
 
 
+-- TODO Add per track divisor/clock sync to allow tracks to move at different speeds (one very slow one very fast for example)
 -- TODO Questions about transpose feature/page
 --      Does this somehow depend on the scale/mode? We can only show 7 pitches per page, so transpose would be transpose by one page height (i.e. 7 pitches)?
 --      What about "normal"/per octave transpose? Is the fact that tranposing a full page is exactly an octave just a coincidence? Because of the chosen scale (scale = music.generate_scale_of_length(8, "major", 14))?
@@ -248,6 +249,8 @@ function redraw()
   screen.move(0, 14)
   screen.line(128, 14)
   screen.stroke()
+  screen.move(0, 22)
+  screen.text("track: "..track)
   playback_icon:redraw()
   screen.update()
 end
