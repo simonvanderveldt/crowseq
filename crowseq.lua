@@ -143,11 +143,9 @@ function init()
     end
     -- TU.print(tracks[i].triggers)
     -- print(tracks[i].triggers[1])
+    crow.output[i].action = "pulse(0.01, 8, 1)"
   end
   grid_redraw()
-
-  crow.output[1].action = "pulse(0.01, 8, 1)"
-  crow.output[3].action = "pulse(0.01, 8, 1)"
 
   task_id = clock.run(tick)
 
@@ -180,16 +178,13 @@ function tick()
             if tracks[i].offset.pitches[tick_to_step(tracks[i].offset.position)] ~= 0 then
               note_num = note_num + (8 - tracks[i].offset.pitches[tick_to_step(tracks[i].offset.position)])
             end
-            local note_value = scale[note_num]/12
-            crow.output[((i - 1) * 2) + 2].volts = note_value + tracks[i].transpose[tick_to_step(tracks[i].pitch.position)]
-            crow.output[((i - 1) * 2) + 1].execute()
+            crow.ii.crow.output(i, (scale[note_num]/12 + tracks[i].transpose[tick_to_step(tracks[i].pitch.position)]))
+            crow.output[i].execute()
           end
 
           -- Increment tracks[i].pitch.position. Wrap tracks[track].pitch.loop_start in case the current tracks[track].pitch.position is at tracks[track].pitch.loop_end
           tracks[i].pitch.position = math.max((tracks[i].pitch.position % tracks[i].pitch.loop_end) + 1, tracks[i].pitch.loop_start)
           tracks[i].offset.position = math.max((tracks[i].offset.position % tracks[i].offset.loop_end) + 1, tracks[i].offset.loop_start)
-          -- tracks[track].pitch.position = math.max((tracks[track].pitch.position % 96) + 1, 1)
-          -- tracks[track].offset.position = math.max((tracks[track].offset.position % 96) + 1, 1)
         end
       end
     -- end
@@ -235,7 +230,7 @@ function enc(n,d)
       else
         tracks[track].pitch.pitches[step] = new_pitch
       end
-      print(step, pitch, new_pitch, tracks[track].transpose[step])
+      -- print(step, pitch, new_pitch, tracks[track].transpose[step])
       -- TU.print(tracks[track].transpose)
     end
   end
@@ -268,8 +263,6 @@ g.key = function(x,y,z)
     elseif z == 0 then -- Key released
       tracks[track].controls[page] = false
     end
-    print(track)
-    print(page)
   else
     -- Page controls
     if z == 1 then -- key pressed
@@ -349,7 +342,6 @@ function grid_redraw()
   local BRIGHTNESS_LOW = 4
   local BRIGHTNESS_MID = 8
   local BRIGHTNESS_HIGH = 11
-  -- print(page)
   g:all(0)
   -- Draw pages
   for i=1,16 do
