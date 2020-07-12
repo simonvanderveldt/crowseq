@@ -3,6 +3,7 @@
 -- PAGE1 = controls pitch
 -- PAGE2 = controls triggers
 -- PAGE3 = controls pitch offset
+-- PAGE4 = controls transpose
 -- ENC1 = BPM
 -- ENC2 = division
 -- ENC3 = transpose
