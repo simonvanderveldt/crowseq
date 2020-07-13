@@ -81,6 +81,7 @@ local scale = music.generate_scale_of_length(36, "major", 14)
 
 local task_id = nil
 local playback_icon = UI.PlaybackIcon.new(121, 55)
+playback_icon.status = 4
 
 
 function has_trigger(step)
