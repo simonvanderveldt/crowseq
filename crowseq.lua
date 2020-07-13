@@ -55,7 +55,7 @@ local page = "pitch"
 local track = 1
 
 -- Tracks
-tracks = {}
+local tracks = {}
 for i = 1,4 do
   tracks[i] = {}
   tracks[i].pitch = {}
@@ -76,7 +76,7 @@ for i = 1,4 do
 end
 
 -- Need 14 notes because we have to cover the range of 7 pitch + 7 offset
-scale = music.generate_scale_of_length(36, "major", 14)
+local scale = music.generate_scale_of_length(36, "major", 14)
 -- TU.print(scale)
 
 local task_id = nil
@@ -141,7 +141,7 @@ function init()
   end
   grid_redraw()
 
-  task_id = clock.run(tick)
+  local task_id = clock.run(tick)
 
   -- screen refresh
   clock.run(function()
@@ -295,7 +295,7 @@ g.key = function(x,y,z)
         elseif page == "triggers" then
           -- Only trigger on row 2-7 because we only have 6 triggers per step
           if y ~= 1 then
-            position = ((x - 1) * 6) + (8 - y)
+            local position = ((x - 1) * 6) + (8 - y)
             if tracks[track].triggers[position] then
               -- Existing trigger pressed, turn off
               tracks[track].triggers[position] = false
