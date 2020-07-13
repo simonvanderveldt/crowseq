@@ -386,14 +386,14 @@ function grid_redraw()
       g:led(i, key_y, i==tick_to_step(tracks[track].pitch.position) and BRIGHTNESS_HIGH or BRIGHTNESS_MID)
     end
   end
-  -- Draw global controls
 
+  -- Draw global controls
   for i = 1,#tracks do
     for k, v in pairs(pages) do
       if i == track and k == page then
         g:led(((i - 1) * 4) + pages[k]["index"], 8, BRIGHTNESS_HIGH)
       else
-        g:led(((i - 1) * 4) + pages[k]["index"], 8, BRIGHTNESS_LOW)
+        g:led(((i - 1) * 4) + pages[k]["index"], 8, k=="pitch" and BRIGHTNESS_MID or BRIGHTNESS_LOW)
       end
     end
   end
