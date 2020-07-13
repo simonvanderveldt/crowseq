@@ -12,15 +12,6 @@
 
 -- TODO Make scale configurable
 -- TODO Add per track divisor/clock sync to allow tracks to move at different speeds (one very slow one very fast for example)
--- TODO Questions about transpose feature/page
---      Does this somehow depend on the scale/mode? We can only show 7 pitches per page, so transpose would be transpose by one page height (i.e. 7 pitches)?
---      What about "normal"/per octave transpose? Is the fact that tranposing a full page is exactly an octave just a coincidence? Because of the chosen scale (scale = music.generate_scale_of_length(8, "major", 14))?
---      Should it simply be called octave and always just transpose by a full octave like on Ansible/Kria?
---      Should it be loopable like pitch and offset?
--- TODO Separate triggers from pitches? I.e. give them their own position
---      Not entirely sure how to make sure they can stay in sync
--- TODO How to blink grid key when looping single key/position?
--- TODO Use absolute value per step or grid based value (1-8) together with separate transpose function/table?
 -- TODO Add morph
 -- TODO Add randomize
 -- TODO Add some form of rythmic variation similar to offsets for pitches
