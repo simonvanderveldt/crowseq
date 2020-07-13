@@ -10,7 +10,7 @@
 -- KEY2 = reset/stop
 -- KEY3 = play/pause
 
-
+-- TODO Make scale configurable
 -- TODO Add per track divisor/clock sync to allow tracks to move at different speeds (one very slow one very fast for example)
 -- TODO Questions about transpose feature/page
 --      Does this somehow depend on the scale/mode? We can only show 7 pitches per page, so transpose would be transpose by one page height (i.e. 7 pitches)?
@@ -84,10 +84,12 @@ for i = 1,4 do
   tracks[i].controls = {pitch = false, triggers = false, offset = false, transpose = false}
 end
 
+-- Need 14 notes because we have to cover the range of 7 pitch + 7 offset
+scale = music.generate_scale_of_length(36, "major", 14)
+-- TU.print(scale)
+
 local task_id = nil
 local playback_icon = UI.PlaybackIcon.new(121, 55)
-
-scale = music.generate_scale_of_length(8, "major", 14)
 
 
 function has_trigger(step)
@@ -247,6 +249,8 @@ function redraw()
   screen.stroke()
   screen.move(0, 22)
   screen.text("track: "..track)
+  screen.move(0, 30)
+  screen.text("page: "..page)
   playback_icon:redraw()
   screen.update()
 end
