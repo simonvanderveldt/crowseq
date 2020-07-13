@@ -3,7 +3,7 @@
 -- PAGE1 = controls pitch
 -- PAGE2 = controls triggers
 -- PAGE3 = controls pitch offset
--- PAGE4 = controls transpose
+-- PAGE4 = controls octave
 -- ENC1 = BPM
 -- ENC2 = division
 -- ENC3 = transpose
@@ -43,14 +43,14 @@ local pages = {
     type = "steps",
     loop = true
   },
-  transpose = {
+  octave = {
     index = 4,
     subpage = false,
     type = "steps",
     loop = false
   },
 }
-local index_to_pages = {"pitch", "triggers", "offset", "transpose"}
+local index_to_pages = {"pitch", "triggers", "offset", "octave"}
 local page = "pitch"
 local track = 1
 
@@ -71,8 +71,8 @@ for i = 1,4 do
   tracks[i].offset.loop_start = 1
   tracks[i].offset.loop_end = 96
   tracks[i].offset.new_loop_set = false
-  tracks[i].transpose = {}
-  tracks[i].controls = {pitch = false, triggers = false, offset = false, transpose = false}
+  tracks[i].octave = {}
+  tracks[i].controls = {pitch = false, triggers = false, offset = false, octave = false}
 end
 
 -- Need 14 notes because we have to cover the range of 7 pitch + 7 offset
@@ -126,7 +126,7 @@ function init()
       -- table.insert(tracks[track].pitch.pitches, math.random(7))
       table.insert(tracks[i].pitch.pitches, 7)
       table.insert(tracks[i].offset.pitches, 0)
-      table.insert(tracks[i].transpose, 0)
+      table.insert(tracks[i].octave, 0)
     end
     for j = 1,96 do
       if j % 6 == 1 then
@@ -172,7 +172,7 @@ function tick()
             if tracks[i].offset.pitches[tick_to_step(tracks[i].offset.position)] ~= 0 then
               note_num = note_num + (8 - tracks[i].offset.pitches[tick_to_step(tracks[i].offset.position)])
             end
-            crow.ii.crow.output(i, (scale[note_num]/12 + tracks[i].transpose[tick_to_step(tracks[i].pitch.position)]))
+            crow.ii.crow.output(i, (scale[note_num]/12 + tracks[i].octave[tick_to_step(tracks[i].pitch.position)]))
             crow.output[i].execute()
           end
 
@@ -212,20 +212,20 @@ function enc(n,d)
   elseif n == 3 then
     -- Transpose
     -- This is wrong/upside down. Not sure what the best way to "flip" the grid is
-    -- TU.print(tracks[track].transpose)
+    -- TU.print(tracks[track].octave)
     for step, pitch in pairs(tracks[track].pitch.pitches) do
       local new_pitch = pitch - d
       if new_pitch < 1 then
         tracks[track].pitch.pitches[step] = 7
-        tracks[track].transpose[step] = util.clamp(tracks[track].transpose[step] + 1, -3, 3)
+        tracks[track].octave[step] = util.clamp(tracks[track].octave[step] + 1, -3, 3)
       elseif new_pitch > 7 then
         tracks[track].pitch.pitches[step] = 1
-        tracks[track].transpose[step] = util.clamp(tracks[track].transpose[step] - 1, -3, 3)
+        tracks[track].octave[step] = util.clamp(tracks[track].octave[step] - 1, -3, 3)
       else
         tracks[track].pitch.pitches[step] = new_pitch
       end
-      -- print(step, pitch, new_pitch, tracks[track].transpose[step])
-      -- TU.print(tracks[track].transpose)
+      -- print(step, pitch, new_pitch, tracks[track].octave[step])
+      -- TU.print(tracks[track].octave)
     end
   end
 end
@@ -312,7 +312,7 @@ g.key = function(x,y,z)
             -- New offset pressed, set it
             tracks[track][page].pitches[x] = y
           end
-        elseif page == "transpose" then
+        elseif page == "octave" then
           tracks[track][page][x] = get_offset_from_key(y)
         end
       end
@@ -376,9 +376,9 @@ function grid_redraw()
       else
         g:led(i,1,i==tick_to_step(tracks[track][page].position) and BRIGHTNESS_LOW or 0)
       end
-    elseif page == "transpose" then
-      -- Show per step transpose
-      -- Transpose is centered around the 4th row from the top, positive upward and negative downward
+    elseif page == "octave" then
+      -- Show per step octave
+      -- Octave is centered around the 4th row from the top, positive upward and negative downward
       local key_y = get_key_from_offset(tracks[track][page][i])
       if key_y ~= 4 then
         g:led(i, 4, BRIGHTNESS_LOW)
