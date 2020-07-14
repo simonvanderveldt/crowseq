@@ -47,7 +47,7 @@ local pages = {
     index = 4,
     subpage = false,
     type = "steps",
-    loop = false
+    loop = true
   },
 }
 local index_to_pages = {"pitch", "triggers", "offset", "octave"}
@@ -72,6 +72,11 @@ for i = 1,4 do
   tracks[i].offset.loop_end = 96
   tracks[i].offset.new_loop_set = false
   tracks[i].octave = {}
+  tracks[i].octave.octaves = {}
+  tracks[i].octave.position = 1
+  tracks[i].octave.loop_start = 1
+  tracks[i].octave.loop_end = 96
+  tracks[i].octave.new_loop_set = false
   tracks[i].controls = {pitch = false, triggers = false, offset = false, octave = false}
 end
 
@@ -127,7 +132,7 @@ function init()
       -- table.insert(tracks[track].pitch.pitches, math.random(7))
       table.insert(tracks[i].pitch.pitches, 7)
       table.insert(tracks[i].offset.pitches, 0)
-      table.insert(tracks[i].octave, 0)
+      table.insert(tracks[i].octave.octaves, 0)
     end
     for j = 1,96 do
       if j % 6 == 1 then
@@ -173,13 +178,14 @@ function tick()
             if tracks[i].offset.pitches[tick_to_step(tracks[i].offset.position)] ~= 0 then
               note_num = note_num + (8 - tracks[i].offset.pitches[tick_to_step(tracks[i].offset.position)])
             end
-            crow.ii.crow.output(i, (scale[note_num]/12 + tracks[i].octave[tick_to_step(tracks[i].pitch.position)]))
+            crow.ii.crow.output(i, (scale[note_num]/12 + tracks[i].octave.octaves[tick_to_step(tracks[i].octave.position)]))
             crow.output[i].execute()
           end
 
           -- Increment tracks[i].pitch.position. Wrap tracks[track].pitch.loop_start in case the current tracks[track].pitch.position is at tracks[track].pitch.loop_end
           tracks[i].pitch.position = math.max((tracks[i].pitch.position % tracks[i].pitch.loop_end) + 1, tracks[i].pitch.loop_start)
           tracks[i].offset.position = math.max((tracks[i].offset.position % tracks[i].offset.loop_end) + 1, tracks[i].offset.loop_start)
+          tracks[i].octave.position = math.max((tracks[i].octave.position % tracks[i].octave.loop_end) + 1, tracks[i].octave.loop_start)
         end
       end
     -- end
@@ -188,19 +194,21 @@ end
 
 function key(n,z)
   if n == 2 and z == 1 then
-      tracks[track].pitch.position = 1
-      tracks[track].offset.position = 1
-      if not running then
-        playback_icon.status = 4
-      end
+    -- Reset to start
+    tracks[track].pitch.position = 1
+    tracks[track].offset.position = 1
+    tracks[track].octave.position = 1
+    if not running then
+      playback_icon.status = 4
+    end
   elseif n == 3 and z == 1 then
-    -- running = not running
+    -- Play/pause
     if running then
-				running = false
-				playback_icon.status = 3
+			running = false
+			playback_icon.status = 3
 		else
-				running = true
-				playback_icon.status = 1
+			running = true
+			playback_icon.status = 1
 		end
   end
 end
@@ -213,20 +221,20 @@ function enc(n,d)
   elseif n == 3 then
     -- Transpose
     -- This is wrong/upside down. Not sure what the best way to "flip" the grid is
-    -- TU.print(tracks[track].octave)
+    -- TU.print(tracks[track].octave.octaves)
     for step, pitch in pairs(tracks[track].pitch.pitches) do
       local new_pitch = pitch - d
       if new_pitch < 1 then
         tracks[track].pitch.pitches[step] = 7
-        tracks[track].octave[step] = util.clamp(tracks[track].octave[step] + 1, -3, 3)
+        tracks[track].octave.octaves[step] = util.clamp(tracks[track].octave.octaves[step] + 1, -3, 3)
       elseif new_pitch > 7 then
         tracks[track].pitch.pitches[step] = 1
-        tracks[track].octave[step] = util.clamp(tracks[track].octave[step] - 1, -3, 3)
+        tracks[track].octave.octaves[step] = util.clamp(tracks[track].octave.octaves[step] - 1, -3, 3)
       else
         tracks[track].pitch.pitches[step] = new_pitch
       end
-      -- print(step, pitch, new_pitch, tracks[track].octave[step])
-      -- TU.print(tracks[track].octave)
+      -- print(step, pitch, new_pitch, tracks[track].octave.octaves[step])
+      -- TU.print(tracks[track].octave.octaves)
     end
   end
 end
@@ -314,7 +322,7 @@ g.key = function(x,y,z)
             tracks[track][page].pitches[x] = y
           end
         elseif page == "octave" then
-          tracks[track][page][x] = get_offset_from_key(y)
+          tracks[track][page].octaves[x] = get_offset_from_key(y)
         end
       end
       -- TU.print(tracks[track][page])
@@ -380,11 +388,11 @@ function grid_redraw()
     elseif page == "octave" then
       -- Show per step octave
       -- Octave is centered around the 4th row from the top, positive upward and negative downward
-      local key_y = get_key_from_offset(tracks[track][page][i])
+      local key_y = get_key_from_offset(tracks[track][page].octaves[i])
       if key_y ~= 4 then
         g:led(i, 4, BRIGHTNESS_LOW)
       end
-      g:led(i, key_y, i==tick_to_step(tracks[track].pitch.position) and BRIGHTNESS_HIGH or BRIGHTNESS_MID)
+      g:led(i, key_y, i==tick_to_step(tracks[track].octave.position) and BRIGHTNESS_HIGH or BRIGHTNESS_MID)
     end
   end
 
