@@ -12,6 +12,8 @@
 
 -- TODO Make scale configurable
 -- TODO Add per track divisor/clock sync to allow tracks to move at different speeds (one very slow one very fast for example)
+-- TODO Separate triggers from pitches/give them their own position and loop start/end points
+--      If/when doing so remove the trigger page specific mid brightness handling based on the pitch page
 -- TODO Add morph
 -- TODO Add randomize
 -- TODO Add some form of rythmic variation similar to offsets for pitches
@@ -370,6 +372,9 @@ function grid_redraw()
         g:led(i,1,i==tick_to_step(tracks[track][page].position) and BRIGHTNESS_LOW or 0)
       end
     elseif page == "triggers" then
+      if i < tick_to_step(tracks[track]["pitch"].loop_start) or i > tick_to_step(tracks[track]["pitch"].loop_end) then
+        BRIGHTNESS_MID = 4
+      end
       for j=1,6 do -- 24ppqn = 6 ticks per 16th note
         if tracks[track][page][((i-1) * 6) + j] then
           g:led(i,8-j,j==(tracks[track].pitch.position - ((i-1) * 6)) and BRIGHTNESS_HIGH or BRIGHTNESS_MID)
