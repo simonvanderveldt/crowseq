@@ -13,6 +13,7 @@
 -- TODO Add per track divisor/clock sync to allow tracks to move at different speeds (one very slow one very fast for example)
 -- TODO Separate triggers from pitches/give them their own position and loop start/end points
 --      If/when doing so remove the trigger page specific mid brightness handling based on the pitch page
+-- TODO Add chance
 -- TODO Add morph
 -- TODO Add randomize
 -- TODO Add some form of rythmic variation similar to offsets for pitches
@@ -147,7 +148,6 @@ function init()
 
   for i = 1,#tracks do
     for j = 1,16 do
-      -- table.insert(tracks[track].pitch.pitches, math.random(7))
       table.insert(tracks[i].pitch.pitches, 7)
       table.insert(tracks[i].offset.pitches, 0)
       table.insert(tracks[i].octave.octaves, 0)
@@ -167,7 +167,7 @@ function init()
 
   local task_id = clock.run(tick)
 
-  -- screen refresh
+  -- Screen refresh
   clock.run(function()
     while true do
       clock.sleep(1/30)
@@ -175,7 +175,7 @@ function init()
     end
   end)
 
-  -- grid refresh
+  -- Grid refresh
   clock.run(function()
     while true do
       clock.sleep(1/30)
@@ -275,7 +275,6 @@ function redraw()
   screen.update()
 end
 
--- Should this be so randomly here? Shouldn't this be in init? Or at the top of the script? Why is it here in this place?
 g = grid.connect()
 
 g.key = function(x,y,z)
