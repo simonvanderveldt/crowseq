@@ -10,7 +10,6 @@
 -- KEY2 = reset/stop
 -- KEY3 = play/pause
 
--- TODO Make scale configurable
 -- TODO Add per track divisor/clock sync to allow tracks to move at different speeds (one very slow one very fast for example)
 -- TODO Separate triggers from pitches/give them their own position and loop start/end points
 --      If/when doing so remove the trigger page specific mid brightness handling based on the pitch page
@@ -19,11 +18,12 @@
 -- TODO Add some form of rythmic variation similar to offsets for pitches
 -- TODO Add Euclidean sequencer, horizontal, 16 steps. ENC2 increases enabled steps, ENC3 rotates, track+start&end sets length and loop start&end
 
-local music = require "musicutil"
+local musicutil = require "musicutil"
 local TU = require "tabutil"
 local UI = require "ui"
 
 local running = false
+local scale = nil
 local divisor = 4
 local grid_buttons_pressed = {}
 local pages = {
@@ -82,14 +82,16 @@ for i = 1,4 do
   tracks[i].controls = {pitch = false, triggers = false, offset = false, octave = false}
 end
 
--- Need 14 notes because we have to cover the range of 7 pitch + 7 offset
-local scale = music.generate_scale_of_length(36, "major", 14)
--- TU.print(scale)
-
 local task_id = nil
 local playback_icon = UI.PlaybackIcon.new(121, 55)
 playback_icon.status = 4
 
+
+function build_scale()
+  -- Need 14 notes because we have to cover the range of 7 pitches + 7 offsets
+  scale = musicutil.generate_scale_of_length(params:get("root_note"), params:get("scale_mode"), 14)
+  -- TU.print(scale)
+end
 
 function has_trigger(step)
   -- Check if there is a trigger enabled on any of the ticks of the given step
@@ -129,6 +131,20 @@ function get_key_from_offset(offset)
 end
 
 function init()
+  local scale_names = {}
+  for i = 1, #musicutil.SCALES do
+    table.insert(scale_names, string.lower(musicutil.SCALES[i].name))
+  end
+
+  -- Add parameters
+  params:add({type = "option", id = "scale_mode", name = "scale mode",
+    options = scale_names, default = 1,
+    action = function() build_scale() end})
+  params:add({type = "number", id = "root_note", name = "root note",
+    min = 0, max = 127, default = 60, formatter = function(param) return musicutil.note_num_to_name(param:get(), true) end,
+    action = function() build_scale() end})
+  params:default()
+
   for i = 1,#tracks do
     for j = 1,16 do
       -- table.insert(tracks[track].pitch.pitches, math.random(7))
@@ -180,7 +196,9 @@ function tick()
             if tracks[i].offset.pitches[tick_to_step(tracks[i].offset.position)] ~= 0 then
               note_num = note_num + (8 - tracks[i].offset.pitches[tick_to_step(tracks[i].offset.position)])
             end
-            crow.ii.crow.output(i, (scale[note_num]/12 + tracks[i].octave.octaves[tick_to_step(tracks[i].octave.position)]))
+            -- Subtract 36 (=3V/octaves) from the note_num so C3/note 60 ends up at 2V
+            -- This is to allow transposing octaves up as well as down for modules that only take positive voltage as pitch input
+            crow.ii.crow.output(i, ((scale[note_num] - 36)/12 + tracks[i].octave.octaves[tick_to_step(tracks[i].octave.position)]))
             crow.output[i].execute()
           end
 
