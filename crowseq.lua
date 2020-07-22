@@ -182,6 +182,9 @@ function init()
       grid_redraw()
     end
   end)
+
+  norns.enc.sens(0, 1) -- Explicitly set desired encoder sensitivity to 1 (default)
+  norns.enc.accel(0, false) -- Disable on acceleration for all encoders
 end
 
 function tick()
