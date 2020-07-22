@@ -370,41 +370,69 @@ function grid_redraw()
   -- Draw pages
   for i=1,16 do
     BRIGHTNESS_MID = 8
-    if pages[page]["loop"] then
-      if i < tick_to_step(tracks[track][page].loop_start) or i > tick_to_step(tracks[track][page].loop_end) then
-        BRIGHTNESS_MID = 4
-      end
-    end
     if page == "pitch" then
       -- Check if there is/are trigger(s) enabled for this step
       local step_trigger, tick_trigger = has_trigger(i)
-      -- Set brightness. If this step is currently playing it's high, if not and this step's trigger is enabled it's mid
+      -- Set brightness. If this step has a trigger and is currently playing it's high, if not and this step's trigger is enabled it's mid
       -- if not but any other trigger for this step is enabled it's low
       -- and if there is no trigger enabled for this step at all it's off but we show a moving cursor at the top row
-      if step_trigger then
-        g:led(i, tracks[track][page].pitches[i], i==tick_to_step(tracks[track][page].position) and BRIGHTNESS_HIGH or BRIGHTNESS_MID)
-      elseif tick_trigger then
-        g:led(i, tracks[track][page].pitches[i], i==tick_to_step(tracks[track][page].position) and BRIGHTNESS_HIGH or BRIGHTNESS_LOW)
+      if pages[page]["loop"] then
+      end
+      if tick_trigger then
+        -- If this step has any trigger
+        if i == tick_to_step(tracks[track][page].position) then
+          -- Show current position
+          g:led(i, tracks[track][page].pitches[i], BRIGHTNESS_HIGH)
+        elseif i < tick_to_step(tracks[track][page].loop_start) or i > tick_to_step(tracks[track][page].loop_end) then
+          -- Dimly show steps that are not part of the current loop
+          g:led(i, tracks[track][page].pitches[i], BRIGHTNESS_LOW)
+        elseif step_trigger then
+          -- Show steps
+          g:led(i, tracks[track][page].pitches[i], BRIGHTNESS_MID)
+        elseif tick_trigger then
+          -- Dimly show steps with tick trigger(s) only
+          g:led(i, tracks[track][page].pitches[i], BRIGHTNESS_LOW)
+        end
       else
+        -- Show current position on the top row if there is no trigger at all
         g:led(i,1,i==tick_to_step(tracks[track][page].position) and BRIGHTNESS_LOW or 0)
       end
     elseif page == "triggers" then
-      if i < tick_to_step(tracks[track]["pitch"].loop_start) or i > tick_to_step(tracks[track]["pitch"].loop_end) then
-        BRIGHTNESS_MID = 4
-      end
       for j=1,6 do -- 24ppqn = 6 ticks per 16th note
         if tracks[track][page][((i-1) * 6) + j] then
-          g:led(i,8-j,j==(tracks[track].pitch.position - ((i-1) * 6)) and BRIGHTNESS_HIGH or BRIGHTNESS_MID)
+          -- If there's a trigger at this tick
+          if step_to_tick(i) + j == tracks[track].pitch.position then
+            -- Show current position
+            g:led(i, 8-j, BRIGHTNESS_HIGH)
+          elseif i < tick_to_step(tracks[track]["pitch"].loop_start) or i > tick_to_step(tracks[track]["pitch"].loop_end) then
+            -- Dimly show ticks that are not part of the current loop
+            g:led(i, 8-j, BRIGHTNESS_LOW)
+          else
+            -- Show ticks
+            g:led(i, 8-j, BRIGHTNESS_MID)
+          end
         else
-          g:led(i,8-j,j==(tracks[track].pitch.position - ((i-1) * 6)) and 3 or 0)
+          -- If there's no trigger show the current position or nothing
+          g:led(i, 8-j, j==(tracks[track].pitch.position - ((i-1) * 6)) and BRIGHTNESS_LOW or 0)
         end
       end
     elseif page == "offset" then
       -- Set brightness. If this step has an offset and is currently playing it's high, if not and this step has an offset it's mid
       -- if there is no offset enabled for this step it's off but we show a moving cursor at the top row
       if tracks[track][page].pitches[i] ~= 0 then
-        g:led(i, tracks[track][page].pitches[i], i==tick_to_step(tracks[track][page].position) and BRIGHTNESS_HIGH or BRIGHTNESS_MID)
+        -- If there's an offset for this step
+        if i == tick_to_step(tracks[track][page].position) then
+          -- Show current position
+          g:led(i, tracks[track][page].pitches[i], BRIGHTNESS_HIGH)
+        elseif i < tick_to_step(tracks[track][page].loop_start) or i > tick_to_step(tracks[track][page].loop_end) then
+          -- Dimly show steps that are not part of the current loop
+          g:led(i, tracks[track][page].pitches[i], BRIGHTNESS_LOW)
+        else
+          -- Show offsets
+          g:led(i, tracks[track][page].pitches[i], i==tick_to_step(tracks[track][page].position) and BRIGHTNESS_HIGH or BRIGHTNESS_MID)
+        end
       else
+        -- If there's no offset show the current position or nothing
         g:led(i,1,i==tick_to_step(tracks[track][page].position) and BRIGHTNESS_LOW or 0)
       end
     elseif page == "octave" then
@@ -412,18 +440,29 @@ function grid_redraw()
       -- Octave is centered around the 4th row from the top, positive upward and negative downward
       local key_y = get_key_from_offset(tracks[track][page].octaves[i])
       if key_y ~= 4 then
+        -- If there's an offset for this step show the baseline
         g:led(i, 4, BRIGHTNESS_LOW)
       end
-      g:led(i, key_y, i==tick_to_step(tracks[track].octave.position) and BRIGHTNESS_HIGH or BRIGHTNESS_MID)
+      if i == tick_to_step(tracks[track][page].position) then
+        -- Show current position
+        g:led(i, key_y, BRIGHTNESS_HIGH)
+      elseif i < tick_to_step(tracks[track][page].loop_start) or i > tick_to_step(tracks[track][page].loop_end) then
+        -- Dimly show steps that are not part of the current loop
+        g:led(i, key_y, BRIGHTNESS_LOW)
+      else
+        -- Show offsets
+        g:led(i, key_y, BRIGHTNESS_MID)
+      end
     end
   end
 
   -- Draw global controls
   for i = 1,#tracks do
-    for k, v in pairs(pages) do
+    for k, _ in pairs(pages) do
       if i == track and k == page then
         g:led(((i - 1) * 4) + pages[k]["index"], 8, BRIGHTNESS_HIGH)
       else
+        -- Always highlight the first page (pitch) of each track to make navigation easier
         g:led(((i - 1) * 4) + pages[k]["index"], 8, k=="pitch" and BRIGHTNESS_MID or BRIGHTNESS_LOW)
       end
     end
