@@ -1,14 +1,14 @@
 -- Crowseq
 --
--- PAGE1 = controls pitch
--- PAGE2 = controls triggers
--- PAGE3 = controls pitch offset
--- PAGE4 = controls octave
--- ENC1 = BPM
--- ENC2 = division
--- ENC3 = transpose
--- KEY2 = reset/stop
--- KEY3 = play/pause
+-- PAGE1 = pitch
+-- PAGE2 = triggers
+-- PAGE3 = pitch offset
+-- PAGE4 = octave
+-- ENC1  = BPM
+-- ENC2  = division
+-- ENC3  = transpose
+-- KEY2  = reset/stop
+-- KEY3  = play/pause
 
 -- TODO Add ENC2 move steps left/right
 -- TODO Add per track divisor/clock sync to allow tracks to move at different speeds (one very slow one very fast for example)
