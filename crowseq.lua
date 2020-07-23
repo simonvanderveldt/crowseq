@@ -90,8 +90,24 @@ playback_icon.status = 4
 
 
 function build_scale()
-  -- Need 14 notes because we have to cover the range of 7 pitches + 7 offsets
-  scale = musicutil.generate_scale_of_length(params:get("root_note"), params:get("scale_mode"), 14)
+  -- Need 13 notes total: -2 to 0 for offsets, 1-7 normal pitches and 8, 9, 10 for offsets
+  scale = {}
+  -- First get the three notes within the scale from below the root note
+  local pre_scale = musicutil.generate_scale_of_length(params:get("root_note") - 12, params:get("scale_mode"), 12)
+  local root_note_index = nil
+  for i, note in ipairs(pre_scale) do
+    if note == params:get("root_note") then
+      root_note_index = i
+    end
+  end
+  for i=-2,0 do
+    scale[i] = pre_scale[root_note_index - 1 + i]
+  end
+
+  -- Append the normal scale nodes to the pre scale notes to create the complete scale
+  for _, note in ipairs(musicutil.generate_scale_of_length(params:get("root_note"), params:get("scale_mode"), 10)) do
+    table.insert(scale, note)
+  end
   -- TU.print(scale)
 end
 
@@ -196,10 +212,7 @@ function tick()
           -- print(tracks[track].pitch.position)
           -- print(tracks[track].triggers[tracks[track].pitch.position])
           if tracks[i].triggers[tracks[i].pitch.position] then
-            local note_num = 8 - tracks[i].pitch.pitches[tick_to_step(tracks[i].pitch.position)]
-            if tracks[i].offset.pitches[tick_to_step(tracks[i].offset.position)] ~= 0 then
-              note_num = note_num + (8 - tracks[i].offset.pitches[tick_to_step(tracks[i].offset.position)])
-            end
+            local note_num = 8 - tracks[i].pitch.pitches[tick_to_step(tracks[i].pitch.position)] + tracks[i].offset.pitches[tick_to_step(tracks[i].offset.position)]
             -- Subtract 36 (=3V/octaves) from the note_num so C3/note 60 ends up at 2V
             -- This is to allow transposing octaves up as well as down for modules that only take positive voltage as pitch input
             crow.ii.crow.output(i, ((scale[note_num] - 36)/12 + tracks[i].octave.octaves[tick_to_step(tracks[i].octave.position)]))
@@ -337,13 +350,7 @@ g.key = function(x,y,z)
             end
           end
         elseif page == "offset" then
-          if tracks[track][page].pitches[x] == y then
-            -- Existing offset pressed, turn off
-            tracks[track][page].pitches[x] = 0
-          else
-            -- New offset pressed, set it
-            tracks[track][page].pitches[x] = y
-          end
+          tracks[track][page].pitches[x] = get_offset_from_key(y)
         elseif page == "octave" then
           tracks[track][page].octaves[x] = get_offset_from_key(y)
         end
@@ -421,23 +428,22 @@ function grid_redraw()
         end
       end
     elseif page == "offset" then
-      -- Set brightness. If this step has an offset and is currently playing it's high, if not and this step has an offset it's mid
-      -- if there is no offset enabled for this step it's off but we show a moving cursor at the top row
-      if tracks[track][page].pitches[i] ~= 0 then
-        -- If there's an offset for this step
-        if i == tick_to_step(tracks[track][page].position) then
-          -- Show current position
-          g:led(i, tracks[track][page].pitches[i], BRIGHTNESS_HIGH)
-        elseif i < tick_to_step(tracks[track][page].loop_start) or i > tick_to_step(tracks[track][page].loop_end) then
-          -- Dimly show steps that are not part of the current loop
-          g:led(i, tracks[track][page].pitches[i], BRIGHTNESS_LOW)
-        else
-          -- Show offsets
-          g:led(i, tracks[track][page].pitches[i], i==tick_to_step(tracks[track][page].position) and BRIGHTNESS_HIGH or BRIGHTNESS_MID)
-        end
+      -- Show per step offset
+      -- Octave is centered around the 4th row from the top, positive upward and negative downward
+      local key_y = get_key_from_offset(tracks[track][page].pitches[i])
+      if key_y ~= 4 then
+        -- If there's an offset for this step show the baseline
+        g:led(i, 4, BRIGHTNESS_LOW)
+      end
+      if i == tick_to_step(tracks[track][page].position) then
+        -- Show current position
+        g:led(i, key_y, BRIGHTNESS_HIGH)
+      elseif i < tick_to_step(tracks[track][page].loop_start) or i > tick_to_step(tracks[track][page].loop_end) then
+        -- Dimly show steps that are not part of the current loop
+        g:led(i, key_y, BRIGHTNESS_LOW)
       else
-        -- If there's no offset show the current position or nothing
-        g:led(i,1,i==tick_to_step(tracks[track][page].position) and BRIGHTNESS_LOW or 0)
+        -- Show offsets
+        g:led(i, key_y, BRIGHTNESS_MID)
       end
     elseif page == "octave" then
       -- Show per step octave
