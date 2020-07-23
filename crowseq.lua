@@ -10,7 +10,6 @@
 -- KEY2  = reset/stop
 -- KEY3  = play/pause
 
--- TODO Add mutes
 -- TODO Add per track divisor/clock sync to allow tracks to move at different speeds (one very slow one very fast for example)
 -- TODO Add ENC2 move steps left/right
 -- TODO Separate triggers from pitches/give them their own position and loop start/end points
@@ -63,6 +62,7 @@ local track = 1
 local tracks = {}
 for i = 1,4 do
   tracks[i] = {}
+  tracks[i].enabled = true
   tracks[i].pitch = {}
   tracks[i].pitch.pitches = {}
   tracks[i].pitch.position = 1
@@ -212,12 +212,14 @@ function tick()
         for i = 1,#tracks do
           -- print(tracks[track].pitch.position)
           -- print(tracks[track].triggers[tracks[track].pitch.position])
-          if tracks[i].triggers[tracks[i].pitch.position] then
-            local note_num = 8 - tracks[i].pitch.pitches[tick_to_step(tracks[i].pitch.position)] + tracks[i].offset.pitches[tick_to_step(tracks[i].offset.position)]
-            -- Subtract 36 (=3V/octaves) from the note_num so C3/note 60 ends up at 2V
-            -- This is to allow transposing octaves up as well as down for modules that only take positive voltage as pitch input
-            crow.ii.crow.output(i, ((scale[note_num] - 36)/12 + tracks[i].octave.octaves[tick_to_step(tracks[i].octave.position)]))
-            crow.output[i].execute()
+          if tracks[i].enabled then
+            if tracks[i].triggers[tracks[i].pitch.position] then
+              local note_num = 8 - tracks[i].pitch.pitches[tick_to_step(tracks[i].pitch.position)] + tracks[i].offset.pitches[tick_to_step(tracks[i].offset.position)]
+              -- Subtract 36 (=3V/octaves) from the note_num so C3/note 60 ends up at 2V
+              -- This is to allow transposing octaves up as well as down for modules that only take positive voltage as pitch input
+              crow.ii.crow.output(i, ((scale[note_num] - 36)/12 + tracks[i].octave.octaves[tick_to_step(tracks[i].octave.position)]))
+              crow.output[i].execute()
+            end
           end
 
           -- Increment tracks[i].pitch.position. Wrap tracks[track].pitch.loop_start in case the current tracks[track].pitch.position is at tracks[track].pitch.loop_end
@@ -298,12 +300,17 @@ g = grid.connect()
 g.key = function(x,y,z)
   if y == 8 then
     -- Global controls
+    track = math.ceil(x/4)
+    local pressed_page = index_to_pages[x - ((track -1) * 4)]
     if z == 1 then -- Key pressed
-      track = math.ceil(x/4)
-      page = index_to_pages[x - ((track -1) * 4)]
-      tracks[track].controls[page] = true
+      if pressed_page == "triggers" and tracks[track].controls["pitch"] == true then
+        tracks[track].enabled = not tracks[track].enabled
+      else
+        tracks[track].controls[pressed_page] = true
+        page = pressed_page
+      end
     elseif z == 0 then -- Key released
-      tracks[track].controls[page] = false
+      tracks[track].controls[pressed_page] = false
     end
   else
     -- Page controls
