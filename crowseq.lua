@@ -10,8 +10,9 @@
 -- KEY2  = reset/stop
 -- KEY3  = play/pause
 
--- TODO Add ENC2 move steps left/right
+-- TODO Add mutes
 -- TODO Add per track divisor/clock sync to allow tracks to move at different speeds (one very slow one very fast for example)
+-- TODO Add ENC2 move steps left/right
 -- TODO Separate triggers from pitches/give them their own position and loop start/end points
 --      If/when doing so remove the trigger page specific mid brightness handling based on the pitch page
 -- TODO Add chance
